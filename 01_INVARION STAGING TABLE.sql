@@ -1,6 +1,6 @@
 ------------------------------Creating the staging table-----------------------------
 create or replace transient table invarion_prod.staging.invarion_orders_stg as
-(select a.currentbillingentityid kw_number, a.id ordernumber, date(CONVERT_TIMEZONE('UTC', a."DATE")) orderdate, 
+(select a.currentbillingentityid customer_id, a.id ordernumber, date(CONVERT_TIMEZONE('UTC', a."DATE")) orderdate, 
 round(a.transactionarr,4) totalordercost, 
 a.termlength subtypeatordertime,
 upper(trim(a.customername)) company,
@@ -37,12 +37,12 @@ order by a.currentbillingentityid, a.id, orderdate
 set grace_period=0;
 
 create or replace transient table invarion_prod.staging.invarion_adjusted_end_date as(
-select a.kw_number, a.ordernumber, a.orderdate, a.standardstartdate, a.standardenddate,a.subtypeatordertime,
+select a.customer_id, a.ordernumber, a.orderdate, a.standardstartdate, a.standardenddate,a.subtypeatordertime,
 greatest(a.standardenddate,least(a.standardenddate+$grace_period,  case when min(b.standardstartdate) is null then a.standardenddate+$grace_period
 else min(b.standardstartdate) end)) standardenddate_adjusted
 
 from invarion_prod.staging.invarion_orders_stg a
-left join invarion_prod.staging.invarion_orders_stg b on a.kw_number = b.kw_number
+left join invarion_prod.staging.invarion_orders_stg b on a.customer_id = b.customer_id
 and b.standardstartdate > a.standardstartdate
 
 group by 1,2,3,4,5,6
@@ -53,13 +53,13 @@ alter table invarion_prod.staging.invarion_orders_stg add column standardenddate
 update invarion_prod.staging.invarion_orders_stg t1
   set t1.standardenddate_adjusted = t2.standardenddate_adjusted
 from invarion_prod.staging.invarion_adjusted_end_date t2
-where t1.kw_number = t2.kw_number and t1.ordernumber = t2.ordernumber;
+where t1.customer_id = t2.customer_id and t1.ordernumber = t2.ordernumber;
 
 drop table invarion_prod.staging.invarion_adjusted_end_date;
 
 ---------------------------------------Create refund table
 create or replace transient table invarion_prod.staging.invarion_refunded_orders_stg as
-(select a.currentbillingentityid kw_number, a.id ordernumber, date(CONVERT_TIMEZONE('UTC', a."DATE")) orderdate, 
+(select a.currentbillingentityid customer_id, a.id ordernumber, date(CONVERT_TIMEZONE('UTC', a."DATE")) orderdate, 
 round(a.transactionarr,4) totalordercost, 
 a.termlength subtypeatordertime,
 upper(trim(a.customername)) company,

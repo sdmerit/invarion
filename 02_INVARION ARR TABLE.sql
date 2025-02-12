@@ -31,7 +31,7 @@ where c.pivot_month is not null
 alter table invarion_prod.prod.invarion_refunded_arr_table_adj add column first_order_date date;
 update invarion_prod.prod.invarion_refunded_arr_table_adj t1
 set t1.first_order_date = t2.first_order_date
-from (select kw_number, min(orderdate) first_order_date 
+from (select customer_id, min(orderdate) first_order_date 
 from invarion_prod.staging.invarion_orders_stg
 group by 1) t2
-where t1.kw_number = t2.kw_number;
+where t1.customer_id = t2.customer_id;
