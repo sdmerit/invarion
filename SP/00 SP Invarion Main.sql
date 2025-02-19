@@ -58,6 +58,9 @@ drop table if exists INVARION_PROD.STAGING.INVARION_REGISTRATION_DATES_ADJ;
 drop table if exists INVARION_PROD.STAGING.INVARION_REGISTRATION_DATES_ADJ_PG;
 drop table if exists invarion_prod.staging.refunded_transactions_mapping;
 drop table if exists invarion_prod.staging.not_refunded_transactions;
+drop table if exists invarion_prod.staging.invarion_refunded_orders_stg;
+drop table if exists invarion_prod.staging.invarion_not_refunded_orders_stg;
+drop table if exists invarion_prod.staging.invarion_orders_stg;
     
 return 1;
 end;    
