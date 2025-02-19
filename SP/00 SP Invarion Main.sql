@@ -46,6 +46,18 @@ begin
         
     end for;
     close c1;
+
+drop table if exists invarion_prod.prod.invarion_arr_table_adj_pg;
+drop table if exists invarion_prod.staging.invarion_upg_dwg_ref_adj_pg;
+drop table if exists INVARION_PROD.PROD.INVARION_ARR_ROLLFORWARD_ADJ_PG;
+drop table if exists INVARION_PROD.PROD.INVARION_ARR_TABLE_ADJ;
+drop table if exists INVARION_PROD.PROD.INVARION_ARR_TABLE_ADJ_FINAL_PG;
+drop table if exists INVARION_PROD.PROD.INVARION_ARR_TABLE_ADJ_PG;
+drop table if exists INVARION_PROD.STAGING.INVARION_ORDERS_STG_PG;
+drop table if exists INVARION_PROD.STAGING.INVARION_REGISTRATION_DATES_ADJ;
+drop table if exists INVARION_PROD.STAGING.INVARION_REGISTRATION_DATES_ADJ_PG;
+drop table if exists invarion_prod.staging.refunded_transactions_mapping;
+drop table if exists invarion_prod.staging.not_refunded_transactions;
     
 return 1;
 end;    

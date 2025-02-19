@@ -157,15 +157,6 @@ from  invarion_prod.staging.classified_transactions t2
 where t1.ordernumber = t2.id;
 
 delete from invarion_prod.prod.invarion_arr_table_adj_final_pg where pivot_month is null;
-drop table if exists invarion_prod.prod.invarion_arr_table_adj_pg;
-drop table if exists invarion_prod.staging.invarion_upg_dwg_ref_adj_pg;
-drop table if exists INVARION_PROD.PROD.INVARION_ARR_ROLLFORWARD_ADJ_PG;
-drop table if exists INVARION_PROD.PROD.INVARION_ARR_TABLE_ADJ;
-drop table if exists INVARION_PROD.PROD.INVARION_ARR_TABLE_ADJ_FINAL_PG;
-drop table if exists INVARION_PROD.PROD.INVARION_ARR_TABLE_ADJ_PG;
-drop table if exists INVARION_PROD.STAGING.INVARION_ORDERS_STG_PG;
-drop table if exists INVARION_PROD.STAGING.INVARION_REGISTRATION_DATES_ADJ;
-drop table if exists INVARION_PROD.STAGING.INVARION_REGISTRATION_DATES_ADJ_PG;
 
 return 1;
 

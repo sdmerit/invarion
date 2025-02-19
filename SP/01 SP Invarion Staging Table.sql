@@ -11,13 +11,104 @@ begin
 let grace_period integer := 0;
 tmp_product := sp_product;
 
+create or replace transient table invarion_prod.staging.refunded_transactions_mapping as
+(
+select refund.id refund_id, 
+concat(refund.currentbillingentityid, 
+'|', refund.periodstart, '|', 
+refund.periodend, '|', 
+refund.originalamount
+,'|', refund.objectid
+) key_col,
+charge.id charge_id, refund.originalamount
+
+from invarion_prod.staging.transactions_raw refund
+left join(
+select id, concat(currentbillingentityid, '|', periodstart, '|', periodend, '|', originalamount
+,'|', objectid
+) key_col, connectedToType
+from invarion_prod.staging.transactions_raw
+where lower(type)!='refund' and originalamount>0
+) charge on charge.key_col = 
+concat(refund.currentbillingentityid, '|', 
+refund.periodstart, '|', 
+refund.periodend, '|', 
+refund.originalamount
+, '|', refund.objectid
+)
+where lower(refund.type)='refund' and charge.id is not null 
+and refund.originalamount>0
+)
+;
+
+create or replace transient table invarion_prod.staging.not_refunded_transactions as
+(
+select refund.id refund_id, 
+concat(refund.currentbillingentityid, 
+'|', refund.periodstart, '|', 
+refund.periodend, '|', 
+refund.originalamount
+,'|', refund.objectid
+) key_col,
+charge.id charge_id, refund.originalamount
+
+from invarion_prod.staging.transactions_raw refund
+left join(
+select id, concat(currentbillingentityid, '|', periodstart, '|', periodend, '|', originalamount
+,'|', objectid
+) key_col, connectedToType
+from invarion_prod.staging.transactions_raw
+where lower(type)!='refund' and originalamount>0
+) charge on charge.key_col = 
+concat(refund.currentbillingentityid, '|', 
+refund.periodstart, '|', 
+refund.periodend, '|', 
+refund.originalamount
+, '|', refund.objectid
+)
+where lower(refund.type)='refund' and charge.id is null 
+and refund.originalamount>0
+)
+;
+
 if (sp_product = 'all') then
 
 create or replace transient table invarion_prod.staging.invarion_orders_stg_pg as
-(select a.currentbillingentityid customer_id, a.id ordernumber, date(CONVERT_TIMEZONE('UTC', a."DATE")) orderdate, 
-round(a.transactionarr,4) totalordercost, 
-a.termlength subtypeatordertime,
-upper(trim(a.customername)) company,
+(select a.currentbillingentityid customer_id, a.id ordernumber, date(a."DATE") orderdate, 
+case when day(a.periodstart) = day(periodend) then 
+    (12*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/(case when datediff('months',a.periodstart, a.periodend)<=0 then 1 else datediff('months',a.periodstart, a.periodend) end)
+when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then 
+    (365*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
+else 0
+end totalordercost, 
+case when day(a.periodstart) = day(a.periodend) then 
+    case datediff('months', a.periodstart, a.periodend) 
+    when 1 then 'Monthly'
+    when 12 then 'Yearly'
+    when 36 then 'Three Year'
+    else 'Others'
+    end 
+else 'Others'
+end subtypeatordertime,
+upper(trim(b.name)) company,
 upper(trim(b.classification)) company_type,
 upper(trim(b.countrycode)) countrycode, 
 upper(trim(b.state)) state, 
@@ -32,24 +123,55 @@ when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
 when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
 else 'Addon' end product,
 
-orderdate standardstartdate,
-date(CONVERT_TIMEZONE('UTC', a.periodend)) standardenddate
+date(a.periodstart) standardstartdate,
+date(a.periodend) standardenddate
 
-from invarion_prod.staging.classified_transactions a
-left join invarion_prod.staging.company b on b.id = a.currentbillingentityid
+from invarion_prod.staging.transactions_raw a
+left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
 
-where a.transactionarr > 0 
+where totalordercost > 0 
 and nvl(lower(a.type),'-') not in ('refund') 
-and a.matchingrefund not in (select distinct id from invarion_prod.staging.classified_transactions where nvl(lower(a.type),'-') in ('refund') )
+and a.id not in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping)
 order by a.currentbillingentityid, a.id, orderdate
 );
 
 ---------------Load refund tables
 create or replace transient table invarion_prod.staging.invarion_refunded_orders_stg as
-(select a.currentbillingentityid customer_id, a.id ordernumber, date(CONVERT_TIMEZONE('UTC', a."DATE")) orderdate,
-round(a.transactionarr,4) totalordercost, 
-a.termlength subtypeatordertime,
-upper(trim(a.customername)) company,
+(select a.currentbillingentityid customer_id, a.id ordernumber, date(a."DATE") orderdate,
+case when day(a.periodstart) = day(periodend) then 
+    (12*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/(case when datediff('months',a.periodstart, a.periodend)<=0 then 1 else datediff('months',a.periodstart, a.periodend) end)
+when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then 
+    (365*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
+else 0
+end totalordercost, 
+case when day(a.periodstart) = day(a.periodend) then 
+    case datediff('months', a.periodstart, a.periodend) 
+    when 1 then 'Monthly'
+    when 12 then 'Yearly'
+    when 36 then 'Three Year'
+    else 'Others'
+    end 
+else 'Others'
+end subtypeatordertime,
+upper(trim(b.name)) company,
 upper(trim(b.classification)) company_type,
 upper(trim(b.countrycode)) countrycode, 
 upper(trim(b.state)) state, 
@@ -64,14 +186,14 @@ when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
 when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
 else 'Addon' end product,
 
-orderdate standardstartdate,
-date(CONVERT_TIMEZONE('UTC', a.periodend)) standardenddate
+date(a.periodstart) standardstartdate,
+date(a.periodend) standardenddate
 
-from invarion_prod.staging.classified_transactions a
-left join invarion_prod.staging.company b on b.id = a.currentbillingentityid
+from invarion_prod.staging.transactions_raw a
+left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
 
-where a.transactionarr > 0 
-and a.matchingrefund in (select distinct id from invarion_prod.staging.classified_transactions where nvl(lower(type),'-') in ('refund') )
+where totalordercost > 0 
+and a.id in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping)
 order by a.currentbillingentityid, a.id, orderdate
 );
 
@@ -98,14 +220,43 @@ from invarion_prod.staging.invarion_orders_stg_pg
 group by 1) t2
 where t1.customer_id = t2.customer_id;
 
--------------------------------------------------------
-else 
-
-create or replace transient table invarion_prod.staging.invarion_orders_stg_pg as
-(select a.currentbillingentityid customer_id, a.id ordernumber, date(CONVERT_TIMEZONE('UTC', a."DATE")) orderdate, 
-round(a.transactionarr,4) totalordercost, 
-a.termlength subtypeatordertime,
-upper(trim(a.customername)) company,
+------------------------------------Load Not refunded transactions
+create or replace transient table invarion_prod.staging.invarion_not_refunded_orders_stg as
+(select a.currentbillingentityid customer_id, a.id ordernumber, date(a."DATE") orderdate,
+case when day(a.periodstart) = day(periodend) then 
+    (12*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/(case when datediff('months',a.periodstart, a.periodend)<=0 then 1 else datediff('months',a.periodstart, a.periodend) end)
+when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then 
+    (365*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
+else 0
+end totalordercost, 
+case when day(a.periodstart) = day(a.periodend) then 
+    case datediff('months', a.periodstart, a.periodend) 
+    when 1 then 'Monthly'
+    when 12 then 'Yearly'
+    when 36 then 'Three Year'
+    else 'Others'
+    end 
+else 'Others'
+end subtypeatordertime,
+upper(trim(b.name)) company,
 upper(trim(b.classification)) company_type,
 upper(trim(b.countrycode)) countrycode, 
 upper(trim(b.state)) state, 
@@ -120,15 +271,103 @@ when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
 when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
 else 'Addon' end product,
 
-orderdate standardstartdate,
-date(CONVERT_TIMEZONE('UTC', a.periodend)) standardenddate
+date(a.periodstart) standardstartdate,
+date(a.periodend) standardenddate
+
+from invarion_prod.staging.transactions_raw a
+left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
+
+where totalordercost > 0 
+and a.id in (select distinct refund_id from invarion_prod.staging.not_refunded_transactions)
+order by a.currentbillingentityid, a.id, orderdate
+);
+
+create or replace transient table invarion_prod.prod.invarion_not_refunded_arr_table_adj as
+(
+select c.pivot_month, a.*,
+case when c.pivot_month = last_day(a.standardenddate) then a.totalordercost else 0 end refunded_arr_currency,
+'Not Refunded' customer_classification
+
+from invarion_prod.staging.invarion_not_refunded_orders_stg a
+
+left join (select distinct(last_day(ds)) pivot_month from whsoftware_prod.staging.whs_date_dim order by 1) c 
+on c.pivot_month = last_day(a.standardenddate)
+
+where c.pivot_month is not null
+
+);
+
+alter table invarion_prod.prod.invarion_not_refunded_arr_table_adj add column first_order_date date;
+update invarion_prod.prod.invarion_not_refunded_arr_table_adj t1
+set t1.first_order_date = t2.first_order_date
+from (select customer_id, min(orderdate) first_order_date 
+from invarion_prod.staging.invarion_orders_stg_pg
+group by 1) t2
+where t1.customer_id = t2.customer_id;
+
+
+-------------------------------------------------------
+else 
+
+create or replace transient table invarion_prod.staging.invarion_orders_stg_pg as
+(select a.currentbillingentityid customer_id, a.id ordernumber, date(a."DATE") orderdate, 
+case when day(a.periodstart) = day(periodend) then 
+    (12*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/(case when datediff('months',a.periodstart, a.periodend)<=0 then 1 else datediff('months',a.periodstart, a.periodend) end)
+when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then 
+    (365*(a.originalamount*case upper(trim(originalcurrencycode))
+    when 'USD' then 1
+    when 'AUD' then 0.66
+    when 'NZD' then 0.584779
+    when 'CAD' then 0.730438
+    when 'GBP' then 1.22451
+    when 'EUR' then 1.06670
+    else 1
+    end
+    ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
+else 0
+end totalordercost, 
+case when day(a.periodstart) = day(a.periodend) then 
+    case datediff('months', a.periodstart, a.periodend) 
+    when 1 then 'Monthly'
+    when 12 then 'Yearly'
+    when 36 then 'Three Year'
+    else 'Others'
+    end 
+else 'Others'
+end subtypeatordertime,
+upper(trim(b.name)) company,
+upper(trim(b.classification)) company_type,
+upper(trim(b.countrycode)) countrycode, 
+upper(trim(b.state)) state, 
+upper(trim(b.city)) city,
+
+case a.objecttypeid
+when 'dce29b08-10f0-48d2-b21e-b047c3b29865' then 'RapidPlan'
+when '46d65d68-013d-457a-8918-6cb09c93795b' then 'RapidPlan Training'
+when '89294981-6053-4308-8d75-add1c2d2b1df' then 'RapidPath'
+when 'e9d3b428-6582-45fe-96bc-9b52e6ea4578' then 'RapidPath Training'
+when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
+when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
+else 'Addon' end product,
+
+date(a.periodstart) standardstartdate,
+date(a.periodend) standardenddate
 
 from invarion_prod.staging.classified_transactions a
-left join invarion_prod.staging.company b on b.id = a.currentbillingentityid
+left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
 
-where a.transactionarr > 0 
+where totalordercost > 0 
 and nvl(lower(a.type),'-') not in ('refund') 
-and a.matchingrefund not in (select distinct id from invarion_prod.staging.classified_transactions where nvl(lower(a.type),'-') in ('refund') )
+and a.id not in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping)
 and product = :tmp_product
 order by a.currentbillingentityid, a.id, orderdate
 );
