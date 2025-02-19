@@ -362,7 +362,7 @@ else 'Addon' end product,
 date(a.periodstart) standardstartdate,
 date(a.periodend) standardenddate
 
-from invarion_prod.staging.classified_transactions a
+from invarion_prod.staging.transactions_raw a
 left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
 
 where totalordercost > 0 
