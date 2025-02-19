@@ -313,7 +313,7 @@ and b.standardstartdate > a.standardstartdate
 
 where a.totalordercost > 0 
 and nvl(lower(a.type),'-') not in ('refund') 
-and a.id not in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping)
+and a.ordernumber not in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping)
 
 group by 1,2,3,4,5,6
 order by 1,2,3,4

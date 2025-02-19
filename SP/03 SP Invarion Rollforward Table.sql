@@ -95,7 +95,7 @@ from invarion_prod.prod.invarion_arr_table_adj_pg
 
 union all
 
-select last_day(res.pivot_month+1) pivot_month, res.customer_id, res.ordernumber, res.orderdate, res.totalordercost, res.subtypeatordertime,
+select last_day(res.pivot_month+1) pivot_month, res.customer_id, res.ordernumber, res.orderdate, res.type, res.totalordercost, res.subtypeatordertime,
 res.company, res.company_type, res.countrycode, res.state, res.city, res.product, res.standardstartdate,
 res.standardenddate, res.standardenddate_adjusted, 0 arr_currency,
 -1*res.arr_cum churn_arr_currency,
