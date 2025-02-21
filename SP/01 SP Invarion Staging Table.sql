@@ -42,6 +42,21 @@ and refund.originalamount>0
 )
 ;
 
+--Identify duplicate refunds against a single charge or vice versa
+create or replace transient table invarion_prod.staging.dup_refunds as
+(select refund_id, count(distinct charge_id) n 
+from invarion_prod.staging.refunded_transactions_mapping
+group by 1
+having n>1
+);
+create or replace transient table  invarion_prod.staging.dup_charges as
+(select charge_id , count(distinct refund_id) n 
+from invarion_prod.staging.refunded_transactions_mapping
+group by 1
+having n>1
+);
+
+
 -----------------------Pick refund transactions that are not mapped to a charge
 create or replace transient table invarion_prod.staging.not_refunded_transactions as
 (
@@ -70,8 +85,42 @@ refund.originalamount
 )
 where lower(refund.type)='refund' and charge.id is null 
 and refund.originalamount>0
+
+union
+
+select refund.id refund_id, 
+concat(refund.currentbillingentityid, 
+'|', refund.periodstart, '|', 
+refund.periodend, '|', 
+refund.originalamount
+,'|', refund.objectid
+) key_col,
+charge.id charge_id, refund.originalamount
+
+from invarion_prod.staging.transactions_raw refund
+left join(
+select id, concat(currentbillingentityid, '|', periodstart, '|', periodend, '|', originalamount
+,'|', objectid
+) key_col, connectedToType
+from invarion_prod.staging.transactions_raw
+where lower(type)!='refund' and originalamount>0
+) charge on charge.key_col = 
+concat(refund.currentbillingentityid, '|', 
+refund.periodstart, '|', 
+refund.periodend, '|', 
+refund.originalamount
+, '|', refund.objectid
+)
+where refund.id in (select distinct refund_id from invarion_prod.staging.dup_refunds)
+or refund.id in (select distinct refund_id from invarion_prod.staging.refunded_transactions_mapping where charge_id in
+(select distinct charge_id from invarion_prod.staging.dup_charges))
 )
 ;
+
+---delete duplicates from the mapping table
+delete from invarion_prod.staging.refunded_transactions_mapping where refund_id in (select distinct refund_id from invarion_prod.staging.dup_refunds);
+delete from invarion_prod.staging.refunded_transactions_mapping where charge_id in (select distinct charge_id from invarion_prod.staging.dup_charges);
+
 
 if (sp_product = 'all') then
 
@@ -298,9 +347,9 @@ order by a.currentbillingentityid, a.id, orderdate
 end if;
 
 delete from invarion_prod.staging.invarion_orders_stg_pg 
-where totalordercost > 0 
-and nvl(lower(type),'-') not in ('refund') 
-and ordernumber not in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping);
+where totalordercost = 0 
+or nvl(lower(type),'-') in ('refund') 
+or ordernumber in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping);
 
 create or replace transient table invarion_prod.staging.invarion_adjusted_end_date_pg as(
 select a.customer_id, a.ordernumber, a.orderdate, a.standardstartdate, a.standardenddate,a.subtypeatordertime,
