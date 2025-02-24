@@ -27,7 +27,7 @@ lag(arr_const_curr_py_usd, 1 ) respect nulls
     over ( partition by source, b.customer_id order by a.pivot_month asc) arr_const_curr_py_usd_prev,
 nvl(round(arr_const_curr_py_usd,5),0) - nvl(round(arr_const_curr_py_usd_prev,5),0) arr_const_curr_py_usd_change,
 --change required for reactivations
-case when (arr_const_curr_py_usd_prev is null or arr_const_curr_py_usd_prev=0) and arr_const_curr_py_usd>0 then 'New         '
+case when (arr_const_curr_py_usd_prev is null or arr_const_curr_py_usd_prev=0) and arr_const_curr_py_usd>0 then 'New           '
 
 when a.pivot_month = last_day(case when b.client_end_date = last_day(b.client_end_date) then b.client_end_date+1 else b.client_end_date end) 
 and arr_const_curr_py_usd_change<0 then 'Churn'
@@ -55,7 +55,7 @@ order by 1,2,3
 ------------------Create a reference for customer create date
 create or replace transient table invarion_prod.staging.invarion_cust_createdate_pg as
 (
-    select customer_id, min(orderdate) datecustomer
+    select customer_id, min(standardstartdate) datecustomer
     from invarion_prod.staging.invarion_orders_stg_pg
     group by 1
 );
@@ -81,11 +81,11 @@ where t1.customer_id = t2.customer_id and t1.pivot_month = t2.pivot_month;
 
 update invarion_prod.prod.invarion_arr_table_adj_pg t1
 set t1.arr_currency=0
-where t1.customer_classification = 'Churn';
+where t1.customer_classification ilike '%Churn%';
 
 update invarion_prod.prod.invarion_arr_table_adj_pg t1
 set t1.churn_arr_currency=0
-where t1.customer_classification != 'Churn';
+where t1.customer_classification not ilike '%Churn%';
 
 -------------------------------------------Append churn data to ARR adjusted table
 
@@ -96,7 +96,7 @@ from invarion_prod.prod.invarion_arr_table_adj_pg
 union all
 
 select last_day(res.pivot_month+1) pivot_month, res.customer_id, res.ordernumber, res.orderdate, res.type, res.totalordercost, res.subtypeatordertime,
-res.company, res.company_type, res.countrycode, res.state, res.city, res.product, res.standardstartdate,
+res.company, res.company_type, res.countrycode, res.state, res.city, res.product, res.originalcurrencycode, res.standardstartdate,
 res.standardenddate, res.standardenddate_adjusted, 0 arr_currency,
 -1*res.arr_cum churn_arr_currency,
 'Churn' customer_classification
@@ -114,6 +114,8 @@ order by customer_id, pivot_month asc
 ) res
 where res.category = 'needs churn'
 );
+
+delete from invarion_prod.prod.invarion_arr_table_adj_final_pg where pivot_month is null;
 
 --------------------------------Append upgrade and downgrade details to ARR adjusted table
 create or replace transient table invarion_prod.staging.invarion_upg_dwg_ref_adj_pg as
@@ -145,7 +147,7 @@ alter table invarion_prod.prod.invarion_arr_table_adj_final_pg add column first_
 update invarion_prod.prod.invarion_arr_table_adj_final_pg t1
 set t1.first_order_date = t2.first_order_date
 from (select customer_id, min(orderdate) first_order_date 
-from invarion_prod.staging.invarion_orders_stg
+from invarion_prod.staging.invarion_orders_stg_pg
 group by 1) t2
 where t1.customer_id = t2.customer_id;
 
@@ -156,7 +158,33 @@ set t1.transaction_source = t2.source, t1.connectedto = t2.connectedto
 from  invarion_prod.staging.classified_transactions t2
 where t1.ordernumber = t2.id;
 
-delete from invarion_prod.prod.invarion_arr_table_adj_final_pg where pivot_month is null;
+-----------------------------------Interim Churn
+
+create or replace transient table invarion_prod.staging.invarion_churn_date as
+(select customer_id, max(pivot_month) churn_date
+from invarion_prod.prod.invarion_arr_table_adj_final_pg
+group by 1
+);
+
+alter table invarion_prod.prod.invarion_arr_table_adj_final_pg add column interim_churn_arr_currency float;
+update invarion_prod.prod.invarion_arr_table_adj_final_pg t1
+set t1.customer_classification = 'Interim Churn', t1.interim_churn_arr_currency = t1.churn_arr_currency,
+t1.churn_arr_currency = 0
+from invarion_prod.staging.invarion_churn_date t2
+where t1.customer_id = t2.customer_id
+and trim(t1.customer_classification) = 'Churn' and t1.pivot_month < last_day(t2.churn_date);
+
+update invarion_prod.prod.invarion_arr_table_adj_final_pg t1
+set t1.interim_churn_arr_currency = 0 where t1.interim_churn_arr_currency is null;
+
+drop table invarion_prod.staging.invarion_churn_date;
+
+------------------------------------Add country
+alter table invarion_prod.prod.invarion_arr_table_adj_final_pg add column country_name string;
+update invarion_prod.prod.invarion_arr_table_adj_final_pg t1
+set t1.country_name = t2.country
+from whsoftware_prod.staging.whs_region_dim_unified t2
+where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 
 return 1;
 

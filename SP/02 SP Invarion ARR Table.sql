@@ -18,6 +18,7 @@ on c.pivot_month >= last_day(a.standardstartdate) and c.pivot_month < last_day(a
 
 );
 
+
 return 1;
 
 end;

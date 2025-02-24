@@ -173,6 +173,7 @@ when 'e9d3b428-6582-45fe-96bc-9b52e6ea4578' then 'RapidPath Training'
 when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
 when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
 else 'Addon' end product,
+originalcurrencycode,
 
 date(a.periodstart) standardstartdate,
 date(a.periodend) standardenddate
@@ -221,6 +222,12 @@ and ordernumber not in (select distinct charge_id from invarion_prod.staging.ref
 group by 1) t2
 where t1.customer_id = t2.customer_id;
 
+alter table invarion_prod.prod.invarion_refunded_arr_table_adj add column country_name string;
+update invarion_prod.prod.invarion_refunded_arr_table_adj t1
+set t1.country_name = t2.country
+from whsoftware_prod.staging.whs_region_dim_unified t2
+where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
+
 ------------------------------------Load Not refunded transactions
 create or replace transient table invarion_prod.staging.invarion_not_refunded_orders_stg as
 (select *
@@ -256,6 +263,12 @@ and ordernumber not in (select distinct charge_id from invarion_prod.staging.ref
 group by 1) t2
 where t1.customer_id = t2.customer_id;
 
+alter table invarion_prod.prod.invarion_not_refunded_arr_table_adj add column country_name string;
+update invarion_prod.prod.invarion_not_refunded_arr_table_adj t1
+set t1.country_name = t2.country
+from whsoftware_prod.staging.whs_region_dim_unified t2
+where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
+
 ------------------------------------Load Trial transactions
 create or replace transient table invarion_prod.staging.invarion_trial_orders_stg as
 (select *
@@ -278,6 +291,12 @@ on c.pivot_month = last_day(a.standardstartdate)
 
 where c.pivot_month is not null
 );
+
+alter table invarion_prod.prod.invarion_trial_arr_table_adj add column country_name string;
+update invarion_prod.prod.invarion_trial_arr_table_adj t1
+set t1.country_name = t2.country
+from whsoftware_prod.staging.whs_region_dim_unified t2
+where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 -------------------------------------------------------
 else 
 
@@ -330,6 +349,7 @@ when 'e9d3b428-6582-45fe-96bc-9b52e6ea4578' then 'RapidPath Training'
 when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
 when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
 else 'Addon' end product,
+originalcurrencycode,
 
 date(a.periodstart) standardstartdate,
 date(a.periodend) standardenddate
