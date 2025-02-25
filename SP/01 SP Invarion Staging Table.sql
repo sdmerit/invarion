@@ -11,6 +11,21 @@ begin
 let grace_period integer := 0;
 tmp_product := sp_product;
 
+----------------------------Flag legacy customers
+create or replace transient table invarion_prod.prod.invarion_legacy_customers as
+(
+select res.currentbillingentityid legacy_customer_id, date(res.periodend) legacy_last_transaction_date 
+from
+(
+select currentbillingentityid, periodstart, periodend, legacy_transaction,
+row_number() over (partition by currentbillingentityid order by periodstart desc) as r_n
+FROM invarion_prod.STAGING.TRANSACTIONS_RAW
+where type != 'Refund'
+order by 1, 2 desc
+) res
+where res.r_n=1 and res.legacy_transaction=true
+);
+
 -----------------------Pick refund transactions that are mapped to a charge
 create or replace transient table invarion_prod.staging.refunded_transactions_mapping as
 (
