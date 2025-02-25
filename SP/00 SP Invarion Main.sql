@@ -61,6 +61,8 @@ drop table if exists invarion_prod.staging.not_refunded_transactions;
 drop table if exists invarion_prod.staging.invarion_refunded_orders_stg;
 drop table if exists invarion_prod.staging.invarion_not_refunded_orders_stg;
 drop table if exists invarion_prod.staging.invarion_orders_stg;
+drop table if exists invarion_prod.staging.dup_charges;
+drop table if exists invarion_prod.staging.dup_refunds;
     
 return 1;
 end;    
