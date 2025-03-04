@@ -165,14 +165,9 @@ when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then
     ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
 else 0
 end totalordercost, 
-case when day(a.periodstart) = day(a.periodend) then 
-    case datediff('months', a.periodstart, a.periodend) 
-    when 1 then 'Monthly'
-    when 12 then 'Yearly'
-    when 36 then 'Three Year'
-    else 'Others'
-    end 
-else 'Others'
+case when datediff('days', a.periodstart, a.periodend) between 0 and 31 then 'Monthly'
+when datediff('days', a.periodstart, a.periodend) between 32 and 370 then 'Yearly'
+when datediff('days', a.periodstart, a.periodend) > 370 then 'Three Year'
 end subtypeatordertime,
 upper(trim(b.name)) company,
 upper(trim(b.classification)) company_type,
@@ -341,14 +336,9 @@ when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then
     ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
 else 0
 end totalordercost, 
-case when day(a.periodstart) = day(a.periodend) then 
-    case datediff('months', a.periodstart, a.periodend) 
-    when 1 then 'Monthly'
-    when 12 then 'Yearly'
-    when 36 then 'Three Year'
-    else 'Others'
-    end 
-else 'Others'
+case when datediff('days', a.periodstart, a.periodend) between 0 and 31 then 'Monthly'
+when datediff('days', a.periodstart, a.periodend) between 32 and 370 then 'Yearly'
+when datediff('days', a.periodstart, a.periodend) > 370 then 'Three Year'
 end subtypeatordertime,
 upper(trim(b.name)) company,
 upper(trim(b.classification)) company_type,
