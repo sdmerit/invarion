@@ -144,22 +144,46 @@ create or replace transient table invarion_prod.staging.invarion_orders_stg_pg a
 case when day(a.periodstart) = day(periodend) then 
     (12*(a.originalamount*case upper(trim(originalcurrencycode))
     when 'USD' then 1
-    when 'AUD' then 0.66
-    when 'NZD' then 0.584779
-    when 'CAD' then 0.730438
-    when 'GBP' then 1.22451
-    when 'EUR' then 1.06670
+    when 'AUD' then 0.68095
+    when 'NZD' then 0.63136
+    when 'CAD' then 0.7549
+    when 'GBP' then 1.2727
+    when 'EUR' then 1.10363
+    when 'DKK' then 0.14801
+    when 'SGD' then 0.75388
+    when 'FJD' then 0.45310
+    when 'UAH' then 0.02604
+    when 'AED' then 0.27220
+    when 'SAR' then 0.26120
+    when 'ZAR' then 0.05455
+    when 'AOA' then 0.00120
+    when 'MXN' then 0.05893
+    when 'TRY' then 0.03370
+    when 'MYR' then 0.21751
+    when 'HRK' then 0.14650
     else 1
     end
     ))/(case when datediff('months',a.periodstart, a.periodend)<=0 then 1 else datediff('months',a.periodstart, a.periodend) end)
 when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then 
     (365*(a.originalamount*case upper(trim(originalcurrencycode))
     when 'USD' then 1
-    when 'AUD' then 0.66
-    when 'NZD' then 0.584779
-    when 'CAD' then 0.730438
-    when 'GBP' then 1.22451
-    when 'EUR' then 1.06670
+    when 'AUD' then 0.68095
+    when 'NZD' then 0.63136
+    when 'CAD' then 0.7549
+    when 'GBP' then 1.2727
+    when 'EUR' then 1.10363
+    when 'DKK' then 0.14801
+    when 'SGD' then 0.75388
+    when 'FJD' then 0.45310
+    when 'UAH' then 0.02604
+    when 'AED' then 0.27220
+    when 'SAR' then 0.26120
+    when 'ZAR' then 0.05455
+    when 'AOA' then 0.00120
+    when 'MXN' then 0.05893
+    when 'TRY' then 0.03370
+    when 'MYR' then 0.21751
+    when 'HRK' then 0.14650
     else 1
     end
     ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
@@ -315,22 +339,46 @@ create or replace transient table invarion_prod.staging.invarion_orders_stg_pg a
 case when day(a.periodstart) = day(periodend) then 
     (12*(a.originalamount*case upper(trim(originalcurrencycode))
     when 'USD' then 1
-    when 'AUD' then 0.66
-    when 'NZD' then 0.584779
-    when 'CAD' then 0.730438
-    when 'GBP' then 1.22451
-    when 'EUR' then 1.06670
+    when 'AUD' then 0.68095
+    when 'NZD' then 0.63136
+    when 'CAD' then 0.7549
+    when 'GBP' then 1.2727
+    when 'EUR' then 1.10363
+    when 'DKK' then 0.14801
+    when 'SGD' then 0.75388
+    when 'FJD' then 0.45310
+    when 'UAH' then 0.02604
+    when 'AED' then 0.27220
+    when 'SAR' then 0.26120
+    when 'ZAR' then 0.05455
+    when 'AOA' then 0.00120
+    when 'MXN' then 0.05893
+    when 'TRY' then 0.03370
+    when 'MYR' then 0.21751
+    when 'HRK' then 0.14650
     else 1
     end
     ))/(case when datediff('months',a.periodstart, a.periodend)<=0 then 1 else datediff('months',a.periodstart, a.periodend) end)
 when day(a.periodstart) != day(periodend) and a.periodend>=a.periodstart then 
     (365*(a.originalamount*case upper(trim(originalcurrencycode))
     when 'USD' then 1
-    when 'AUD' then 0.66
-    when 'NZD' then 0.584779
-    when 'CAD' then 0.730438
-    when 'GBP' then 1.22451
-    when 'EUR' then 1.06670
+    when 'AUD' then 0.68095
+    when 'NZD' then 0.63136
+    when 'CAD' then 0.7549
+    when 'GBP' then 1.2727
+    when 'EUR' then 1.10363
+    when 'DKK' then 0.14801
+    when 'SGD' then 0.75388
+    when 'FJD' then 0.45310
+    when 'UAH' then 0.02604
+    when 'AED' then 0.27220
+    when 'SAR' then 0.26120
+    when 'ZAR' then 0.05455
+    when 'AOA' then 0.00120
+    when 'MXN' then 0.05893
+    when 'TRY' then 0.03370
+    when 'MYR' then 0.21751
+    when 'HRK' then 0.14650
     else 1
     end
     ))/truncate(TIMESTAMPDIFF('hours',a.periodstart, a.periodend)/24)
