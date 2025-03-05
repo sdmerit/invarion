@@ -11,20 +11,39 @@ begin
 let grace_period integer := 0;
 tmp_product := sp_product;
 
-----------------------------Flag legacy customers
-create or replace transient table invarion_prod.prod.invarion_legacy_customers as
-(
-select res.currentbillingentityid legacy_customer_id, date(res.periodend) legacy_last_transaction_date 
-from
-(
-select currentbillingentityid, periodstart, periodend, legacy_transaction,
-row_number() over (partition by currentbillingentityid order by periodstart desc) as r_n
-FROM invarion_prod.STAGING.TRANSACTIONS_RAW
-where type != 'Refund'
-order by 1, 2 desc
-) res
-where res.r_n=1 and res.legacy_transaction=true
-);
+----------------------------Flag legacy licenses
+create or replace transient table invarion_prod.staging.invarion_legacy_tracker as
+(select * from
+(select a.objectid licenseid,  b.id companyid, b.countrycode country, b.name companyname,
+coalesce(prod.product, 'Addon') product, 
+a.objectaccesstype AccessType,
+date(latest_transaction."DATE") LatestTransactionDate,
+latest_transaction.originalcurrencycode LatestTransactioncurrency,
+latest_transaction.originalamount LatestTransactionamount,
+case when lower(latest_transaction.source)='stripe' then true else false end LatestTransactionOnStripe,
+case when legacy_lic.licenseid is not null then 'Legacy' else 'Not Legacy' end legacy_status,
+date(min(a."DATE")) first_license_purchase_date,
+date(max(a.periodend)) CurrentExpirationDate
+
+from invarion_prod.staging.transactions_raw a
+
+left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
+
+left join (select objectid, source, "DATE", periodstart, originalamount, originalcurrencycode,
+row_number() over (partition by objectid order by "DATE" desc) r_n
+from invarion_prod.staging.transactions_raw
+) latest_transaction on latest_transaction.objectid = a.objectid and latest_transaction.r_n = 1
+
+left join invarion_prod.staging.legacy_licenses legacy_lic on legacy_lic.licenseid = a.objectid
+
+left join invarion_prod.staging.invarion_product_dim prod on prod.objecttypeid = a.objecttypeid
+
+group by 1,2,3,4,5,6,7,8,9,10,11
+)
+where product in ('RapidPlan','RapidPath','RapidPlan Training','RapidPath Training')
+and legacy_status = 'Legacy'
+)
+;
 
 -----------------------Pick refund transactions that are mapped to a charge
 create or replace transient table invarion_prod.staging.refunded_transactions_mapping as
@@ -199,14 +218,7 @@ upper(trim(b.countrycode)) countrycode,
 upper(trim(b.state)) state, 
 upper(trim(b.city)) city,
 
-case a.objecttypeid
-when 'dce29b08-10f0-48d2-b21e-b047c3b29865' then 'RapidPlan'
-when '46d65d68-013d-457a-8918-6cb09c93795b' then 'RapidPlan Training'
-when '89294981-6053-4308-8d75-add1c2d2b1df' then 'RapidPath'
-when 'e9d3b428-6582-45fe-96bc-9b52e6ea4578' then 'RapidPath Training'
-when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
-when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
-else 'Addon' end product,
+coalesce(prod.product, 'Addon') product,
 originalcurrencycode,
 
 date(a.periodstart) standardstartdate,
@@ -214,10 +226,8 @@ date(a.periodend) standardenddate
 
 from invarion_prod.staging.transactions_raw a
 left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
+left join invarion_prod.staging.invarion_product_dim prod on prod.objecttypeid = a.objecttypeid
 
---where totalordercost > 0 
---and nvl(lower(a.type),'-') not in ('refund') 
---and a.id not in (select distinct charge_id from invarion_prod.staging.refunded_transactions_mapping)
 order by a.currentbillingentityid, a.id, orderdate
 );
 
@@ -394,14 +404,7 @@ upper(trim(b.countrycode)) countrycode,
 upper(trim(b.state)) state, 
 upper(trim(b.city)) city,
 
-case a.objecttypeid
-when 'dce29b08-10f0-48d2-b21e-b047c3b29865' then 'RapidPlan'
-when '46d65d68-013d-457a-8918-6cb09c93795b' then 'RapidPlan Training'
-when '89294981-6053-4308-8d75-add1c2d2b1df' then 'RapidPath'
-when 'e9d3b428-6582-45fe-96bc-9b52e6ea4578' then 'RapidPath Training'
-when 'bfbfb16b-bc0b-4993-a221-c5e3a87410b6' then 'RapidPlan Online'
-when '92a5e8e7-ece4-43c4-8ce4-526fbb7272e0' then 'RapidPath Online'
-else 'Addon' end product,
+coalesce(prod.product, 'Addon') product,
 originalcurrencycode,
 
 date(a.periodstart) standardstartdate,
@@ -409,6 +412,7 @@ date(a.periodend) standardenddate
 
 from invarion_prod.staging.transactions_raw a
 left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
+left join invarion_prod.staging.invarion_product_dim prod on prod.objecttypeid = a.objecttypeid
 
 where totalordercost > 0 
 and nvl(lower(a.type),'-') not in ('refund') 
