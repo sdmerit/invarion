@@ -155,7 +155,7 @@ where t1.customer_id = t2.customer_id;
 alter table invarion_prod.prod.invarion_arr_table_adj_final_pg add column transaction_source string, connectedto string;
 update invarion_prod.prod.invarion_arr_table_adj_final_pg t1
 set t1.transaction_source = t2.source, t1.connectedto = t2.connectedto
-from  invarion_prod.staging.classified_transactions t2
+from  invarion_prod.staging.transactions_raw t2
 where t1.ordernumber = t2.id;
 
 -----------------------------------Interim Churn
