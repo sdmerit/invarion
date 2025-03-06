@@ -11,40 +11,6 @@ begin
 let grace_period integer := 0;
 tmp_product := sp_product;
 
-----------------------------Flag legacy licenses
-create or replace transient table invarion_prod.staging.invarion_legacy_tracker as
-(select * from
-(select a.objectid licenseid,  b.id companyid, b.countrycode country, b.name companyname,
-coalesce(prod.product, 'Addon') product, 
-a.objectaccesstype AccessType,
-date(latest_transaction."DATE") LatestTransactionDate,
-latest_transaction.originalcurrencycode LatestTransactioncurrency,
-latest_transaction.originalamount LatestTransactionamount,
-case when lower(latest_transaction.source)='stripe' then true else false end LatestTransactionOnStripe,
-case when legacy_lic.licenseid is not null then 'Legacy' else 'Not Legacy' end legacy_status,
-date(min(a."DATE")) first_license_purchase_date,
-date(max(a.periodend)) CurrentExpirationDate
-
-from invarion_prod.staging.transactions_raw a
-
-left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
-
-left join (select objectid, source, "DATE", periodstart, originalamount, originalcurrencycode,
-row_number() over (partition by objectid order by "DATE" desc) r_n
-from invarion_prod.staging.transactions_raw
-) latest_transaction on latest_transaction.objectid = a.objectid and latest_transaction.r_n = 1
-
-left join invarion_prod.staging.legacy_licenses legacy_lic on legacy_lic.licenseid = a.objectid
-
-left join invarion_prod.staging.invarion_product_dim prod on prod.objecttypeid = a.objecttypeid
-
-group by 1,2,3,4,5,6,7,8,9,10,11
-)
-where product in ('RapidPlan','RapidPath','RapidPlan Training','RapidPath Training')
-and legacy_status = 'Legacy'
-)
-;
-
 -----------------------Pick refund transactions that are mapped to a charge
 create or replace transient table invarion_prod.staging.refunded_transactions_mapping as
 (
@@ -158,6 +124,60 @@ delete from invarion_prod.staging.refunded_transactions_mapping where charge_id 
 
 if (sp_product = 'all') then
 
+----------------------------Flag legacy licenses
+create or replace transient table invarion_prod.staging.invarion_legacy_tracker as
+(
+select res.*, 
+case when lower(res.product) = 'rapidplan training' and res.latesttransactioncurrency in ('AUD','USD') 
+and res.accesstype ilike 'multi%' then 149
+when lower(res.product) = 'rapidplan training' and res.latesttransactioncurrency in ('USD') and res.accesstype ilike 'single%' then 99
+else pricegrid.price_th1 end renewal_price_stage1, 
+pricegrid.price_th2 renewal_price_stage2, 
+pricegrid.price_th3 renewal_price_stage3,
+case when res.latesttransactionamount<renewal_price_stage1 then 'Price Transition-Not Started'
+when res.latesttransactionamount<renewal_price_stage2 then 'Price Transition-Stage 1 Completed'
+when res.latesttransactionamount<renewal_price_stage3 then 'Price Transition-Stage 2 Completed'
+when res.latesttransactionamount>=renewal_price_stage3 then 'Price Transition-Stage 3 Completed'
+end renewal_status
+
+from
+(select a.objectid licenseid,  b.id companyid, coalesce(country.country,b.countrycode) country, b.name companyname,
+coalesce(prod.product, 'Addon') product, 
+a.objectaccesstype AccessType,
+date(latest_transaction."DATE") LatestTransactionDate,
+latest_transaction.originalcurrencycode LatestTransactioncurrency,
+latest_transaction.originalamount LatestTransactionamount,
+case when lower(latest_transaction.source)='stripe' then true else false end LatestTransactionOnStripe,
+case when legacy_lic.licenseid is not null then 'Legacy' else 'Not Legacy' end legacy_status,
+date(min(a."DATE")) first_license_purchase_date,
+date(max(a.periodend)) CurrentExpirationDate
+
+from invarion_prod.staging.transactions_raw a
+
+left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
+
+left join (select objectid, source, "DATE", periodstart, originalamount, originalcurrencycode,
+row_number() over (partition by objectid order by "DATE" desc) r_n
+from invarion_prod.staging.transactions_raw
+) latest_transaction on latest_transaction.objectid = a.objectid and latest_transaction.r_n = 1
+
+left join invarion_prod.staging.legacy_licenses legacy_lic on legacy_lic.licenseid = a.objectid
+
+left join invarion_prod.staging.invarion_product_dim prod on prod.objecttypeid = a.objecttypeid
+
+left join whsoftware_prod.staging.whs_region_dim_unified country on upper(trim(b.countrycode)) = upper(trim(country.country_code))
+
+group by 1,2,3,4,5,6,7,8,9,10,11
+) res
+
+left join invarion_prod.staging.invarion_price_rise_grid pricegrid on upper(trim(res.LatestTransactioncurrency)) = upper(trim(pricegrid.currency_code))
+and upper(trim(res.product)) = upper(trim(pricegrid.product)) and upper(trim(res.accesstype)) = upper(trim(pricegrid.objectaccesstype))
+
+where res.product in ('RapidPlan','RapidPath','RapidPlan Training','RapidPath Training')
+and res.legacy_status = 'Legacy'
+)
+;
+--------------------------------------create orders staging table
 create or replace transient table invarion_prod.staging.invarion_orders_stg_pg as
 (select a.currentbillingentityid customer_id, a.id ordernumber, date(a."DATE") orderdate, type,
 case when day(a.periodstart) = day(periodend) then 
