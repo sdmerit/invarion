@@ -272,6 +272,12 @@ set t1.country_name = t2.country
 from whsoftware_prod.staging.whs_region_dim_unified t2
 where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 
+alter table invarion_prod.prod.invarion_refunded_arr_table_adj add column transaction_source string, connectedto string;
+update invarion_prod.prod.invarion_refunded_arr_table_adj t1
+set t1.transaction_source = t2.source, t1.connectedto = t2.connectedto
+from  invarion_prod.staging.transactions_raw t2
+where t1.ordernumber = t2.id;
+
 ------------------------------------Load Not refunded transactions
 create or replace transient table invarion_prod.staging.invarion_not_refunded_orders_stg as
 (select *
@@ -313,6 +319,12 @@ set t1.country_name = t2.country
 from whsoftware_prod.staging.whs_region_dim_unified t2
 where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 
+alter table invarion_prod.prod.invarion_not_refunded_arr_table_adj add column transaction_source string, connectedto string;
+update invarion_prod.prod.invarion_not_refunded_arr_table_adj t1
+set t1.transaction_source = t2.source, t1.connectedto = t2.connectedto
+from  invarion_prod.staging.transactions_raw t2
+where t1.ordernumber = t2.id;
+
 ------------------------------------Load Trial transactions
 create or replace transient table invarion_prod.staging.invarion_trial_orders_stg as
 (select *
@@ -341,6 +353,12 @@ update invarion_prod.prod.invarion_trial_arr_table_adj t1
 set t1.country_name = t2.country
 from whsoftware_prod.staging.whs_region_dim_unified t2
 where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
+
+alter table invarion_prod.prod.invarion_trial_arr_table_adj add column transaction_source string, connectedto string;
+update invarion_prod.prod.invarion_trial_arr_table_adj t1
+set t1.transaction_source = t2.source, t1.connectedto = t2.connectedto
+from  invarion_prod.staging.transactions_raw t2
+where t1.ordernumber = t2.id;
 -------------------------------------------------------
 else 
 
