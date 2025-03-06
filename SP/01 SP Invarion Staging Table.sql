@@ -268,7 +268,7 @@ where t1.customer_id = t2.customer_id;
 
 alter table invarion_prod.prod.invarion_refunded_arr_table_adj add column country_name string;
 update invarion_prod.prod.invarion_refunded_arr_table_adj t1
-set t1.country_name = t2.country
+set t1.country_name = coalesce(t2.country, t1.countrycode)
 from whsoftware_prod.staging.whs_region_dim_unified t2
 where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 
@@ -315,7 +315,7 @@ where t1.customer_id = t2.customer_id;
 
 alter table invarion_prod.prod.invarion_not_refunded_arr_table_adj add column country_name string;
 update invarion_prod.prod.invarion_not_refunded_arr_table_adj t1
-set t1.country_name = t2.country
+set t1.country_name = coalesce(t2.country, t1.countrycode)
 from whsoftware_prod.staging.whs_region_dim_unified t2
 where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 
@@ -350,7 +350,7 @@ where c.pivot_month is not null
 
 alter table invarion_prod.prod.invarion_trial_arr_table_adj add column country_name string;
 update invarion_prod.prod.invarion_trial_arr_table_adj t1
-set t1.country_name = t2.country
+set t1.country_name = coalesce(t2.country, t1.countrycode)
 from whsoftware_prod.staging.whs_region_dim_unified t2
 where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 

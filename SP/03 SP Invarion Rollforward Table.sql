@@ -182,7 +182,7 @@ drop table invarion_prod.staging.invarion_churn_date;
 ------------------------------------Add country
 alter table invarion_prod.prod.invarion_arr_table_adj_final_pg add column country_name string;
 update invarion_prod.prod.invarion_arr_table_adj_final_pg t1
-set t1.country_name = t2.country
+set t1.country_name = coalesce(t2.country, t1.countrycode)
 from whsoftware_prod.staging.whs_region_dim_unified t2
 where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
 

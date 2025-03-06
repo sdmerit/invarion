@@ -39,6 +39,11 @@ begin
         
     end for;
     close c1;
+    
+update invarion_prod.prod.invarion_arr_table_adj_final t1
+set t1.transaction_source = t2.source, t1.connectedto = t2.connectedto
+from  invarion_prod.staging.transactions_raw t2
+where t1.ordernumber = t2.id;
 
 drop table if exists invarion_prod.prod.invarion_arr_table_adj_pg;
 drop table if exists invarion_prod.staging.invarion_upg_dwg_ref_adj_pg;
