@@ -134,10 +134,10 @@ when lower(res.product) = 'rapidplan training' and res.latesttransactioncurrency
 else pricegrid.price_th1 end renewal_price_stage1, 
 pricegrid.price_th2 renewal_price_stage2, 
 pricegrid.price_th3 renewal_price_stage3,
-case when res.latesttransactionamount<renewal_price_stage1 then 'Price Transition-Not Started'
-when res.latesttransactionamount<renewal_price_stage2 then 'Price Transition-Stage 1 Completed'
-when res.latesttransactionamount<renewal_price_stage3 then 'Price Transition-Stage 2 Completed'
-when res.latesttransactionamount>=renewal_price_stage3 then 'Price Transition-Stage 3 Completed'
+case when round(res.latesttransactionamount,0)<round(renewal_price_stage1,0) then 'Price Transition-Not Started'
+when round(res.latesttransactionamount,0)<round(renewal_price_stage2,0) then 'Price Transition-Stage 1 Completed'
+when round(res.latesttransactionamount,0)<round(renewal_price_stage3,0) then 'Price Transition-Stage 2 Completed'
+when round(res.latesttransactionamount,0)>=round(renewal_price_stage3,0) then 'Price Transition-Stage 3 Completed'
 end renewal_status
 
 from
