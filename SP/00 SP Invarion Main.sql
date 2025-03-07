@@ -45,6 +45,11 @@ set t1.transaction_source = t2.source, t1.connectedto = t2.connectedto
 from  invarion_prod.staging.transactions_raw t2
 where t1.ordernumber = t2.id;
 
+update invarion_prod.prod.invarion_arr_table_adj_final t1
+set t1.country_name = coalesce(t2.country, t1.countrycode)
+from whsoftware_prod.staging.whs_region_dim_unified t2
+where upper(trim(t1.countrycode)) = upper(trim(t2.country_code));
+
 drop table if exists invarion_prod.prod.invarion_arr_table_adj_pg;
 drop table if exists invarion_prod.staging.invarion_upg_dwg_ref_adj_pg;
 drop table if exists INVARION_PROD.PROD.INVARION_ARR_ROLLFORWARD_ADJ_PG;
