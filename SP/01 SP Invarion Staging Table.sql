@@ -128,16 +128,21 @@ if (sp_product = 'all') then
 create or replace transient table invarion_prod.staging.invarion_legacy_tracker as
 (
 select res.*, 
-case when lower(res.product) = 'rapidplan training' and res.latesttransactioncurrency in ('AUD','USD') 
+
+case 
+when res.companyid = '468bc43f-a352-41d2-8b68-4a7e0ab097d8' then 0.45*pricegrid.price_th3 --Transport for NSW
+when lower(res.product) = 'rapidplan training' and res.latesttransactioncurrency in ('AUD','USD') 
 and res.accesstype ilike 'multi%' then 149
 when lower(res.product) = 'rapidplan training' and res.latesttransactioncurrency in ('USD') and res.accesstype ilike 'single%' then 99
 else pricegrid.price_th1 end renewal_price_stage1, 
-pricegrid.price_th2 renewal_price_stage2, 
+case when res.companyid = '468bc43f-a352-41d2-8b68-4a7e0ab097d8' then 0.70*pricegrid.price_th3 --Transport for NSW
+else pricegrid.price_th2 end renewal_price_stage2, 
 pricegrid.price_th3 renewal_price_stage3,
-case when round(res.latesttransactionamount,0)<round(renewal_price_stage1,0) then 'Price Transition-Not Started'
-when round(res.latesttransactionamount,0)<round(renewal_price_stage2,0) then 'Price Transition-Stage 1 Completed'
-when round(res.latesttransactionamount,0)<round(renewal_price_stage3,0) then 'Price Transition-Stage 2 Completed'
-when round(res.latesttransactionamount,0)>=round(renewal_price_stage3,0) then 'Price Transition-Stage 3 Completed'
+
+case when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage1,0) then 'Price Transition-Not Started'
+when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage2,0) then 'Price Transition-Stage 1 Completed'
+when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage3,0) then 'Price Transition-Stage 2 Completed'
+when round(res.LatestTransactionamount_per_yr,0)+5>=round(renewal_price_stage3,0) then 'Price Transition-Stage 3 Completed'
 end renewal_status
 
 from
@@ -147,6 +152,9 @@ a.objectaccesstype AccessType,
 date(latest_transaction."DATE") LatestTransactionDate,
 latest_transaction.originalcurrencycode LatestTransactioncurrency,
 latest_transaction.originalamount LatestTransactionamount,
+latest_transaction.n_years LatestTransaction_years,
+case when latest_transaction.n_years>=1 then latest_transaction.originalamount/latest_transaction.n_years 
+else latest_transaction.originalamount end LatestTransactionamount_per_yr,
 case when lower(latest_transaction.source)='stripe' then true else false end LatestTransactionOnStripe,
 case when legacy_lic.licenseid is not null then 'Legacy' else 'Not Legacy' end legacy_status,
 date(min(a."DATE")) first_license_purchase_date,
@@ -156,7 +164,7 @@ from invarion_prod.staging.transactions_raw a
 
 left join invarion_prod.staging.company_raw b on b.id = a.currentbillingentityid
 
-left join (select objectid, source, "DATE", periodstart, originalamount, originalcurrencycode,
+left join (select objectid, source, "DATE", datediff('year',date(periodstart), date(periodend)) n_years, originalamount, originalcurrencycode,
 row_number() over (partition by objectid order by "DATE" desc) r_n
 from invarion_prod.staging.transactions_raw
 ) latest_transaction on latest_transaction.objectid = a.objectid and latest_transaction.r_n = 1
@@ -167,7 +175,7 @@ left join invarion_prod.staging.invarion_product_dim prod on prod.objecttypeid =
 
 left join whsoftware_prod.staging.whs_region_dim_unified country on upper(trim(b.countrycode)) = upper(trim(country.country_code))
 
-group by 1,2,3,4,5,6,7,8,9,10,11
+group by 1,2,3,4,5,6,7,8,9,10,11,12,13
 ) res
 
 left join invarion_prod.staging.invarion_price_rise_grid pricegrid on upper(trim(res.LatestTransactioncurrency)) = upper(trim(pricegrid.currency_code))
