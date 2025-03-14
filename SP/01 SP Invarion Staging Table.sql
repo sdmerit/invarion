@@ -139,10 +139,10 @@ case when res.companyid = '468bc43f-a352-41d2-8b68-4a7e0ab097d8' then 0.70*price
 else pricegrid.price_th2 end renewal_price_stage2, 
 pricegrid.price_th3 renewal_price_stage3,
 
-case when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage1,0) then 'Price Transition-Not Started'
-when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage2,0) then 'Price Transition-Stage 1 Completed'
-when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage3,0) then 'Price Transition-Stage 2 Completed'
-when round(res.LatestTransactionamount_per_yr,0)+5>=round(renewal_price_stage3,0) then 'Price Transition-Stage 3 Completed'
+case when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage1,0) then 'Not Started'
+when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage2,0) then 'Stage 1 Completed'
+when round(res.LatestTransactionamount_per_yr,0)+5<round(renewal_price_stage3,0) then 'Stage 2 Completed'
+when round(res.LatestTransactionamount_per_yr,0)+5>=round(renewal_price_stage3,0) then 'Stage 3 Completed'
 end renewal_status
 
 from
@@ -185,6 +185,30 @@ where res.product in ('RapidPlan','RapidPath','RapidPlan Training','RapidPath Tr
 and res.legacy_status = 'Legacy'
 )
 ;
+-----------------------Calculate churn rate for the customers who own legacy licenses
+create or replace transient table invarion_prod.prod.invarion_churn_for_legacy as
+(
+select c.name companyname, a.currentbillingentityid companyid, date(a."DATE") orderdate, a.objectid licenseid, a.originalamount,
+coalesce(prod.product, 'Addon') product,
+case when b.licenseid is not null then 'Legacy' else 'Not Legacy' end License_cohort,
+case when a.periodend >= current_date() then 1 else 0 end current_license_status_num,
+case when a.periodend >= current_date() then 'Active' else 'Expired' end current_license_status,
+d.customer_since
+
+from invarion_prod.staging.transactions_raw a
+left join invarion_prod.staging.invarion_legacy_tracker b on b.licenseid = a.objectid
+left join invarion_prod.staging.company_raw c on c.id = a.currentbillingentityid
+
+left join (select currentbillingentityid, min(date(periodstart)) customer_since 
+from invarion_prod.staging.transactions_raw 
+where originalamount>0 and type!='Refund'
+group by 1) d on d.currentbillingentityid = a.currentbillingentityid
+
+left join invarion_prod.staging.invarion_product_dim prod on prod.objecttypeid = a.objecttypeid
+
+where a.currentbillingentityid in (select distinct companyid from invarion_prod.staging.invarion_legacy_tracker)
+and a.originalamount>0 and a.type!='Refund'
+);
 --------------------------------------create orders staging table
 create or replace transient table invarion_prod.staging.invarion_orders_stg_pg as
 (select a.currentbillingentityid customer_id, a.id ordernumber, date(a."DATE") orderdate, type,
